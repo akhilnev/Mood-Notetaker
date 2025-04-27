@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Mood Notetaker",
-  "version": "0.1",
+  "version": "0.2",
   "description": "Real-time emotion tracking and meeting notes for video calls",
   "permissions": [
     "activeTab",
@@ -20,7 +20,7 @@
         "https://meet.google.com/*",
         "https://teams.microsoft.com/*"
       ],
-      "js": ["content/content.js"],
+      "js": ["content/emotion-detector.js", "content/audio-capturer.js", "content/content.js"],
       "css": ["content/content.css"]
     }
   ],
@@ -30,15 +30,15 @@
   },
   "action": {
     "default_popup": "popup/popup.html",
-    "default_icon": {
-      "16": "icons/icon16.png",
-      "48": "icons/icon48.png",
-      "128": "icons/icon128.png"
-    }
+    "default_icon": "icons/icon.svg"
   },
   "web_accessible_resources": [
     {
-      "resources": ["content/face-api/*", "content/models/*"],
+      "resources": ["content/face-api/*", "content/face-api/models/*"],
+      "matches": ["<all_urls>"]
+    },
+    {
+      "resources": ["config.js"],
       "matches": ["<all_urls>"]
     }
   ]

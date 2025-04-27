@@ -60,6 +60,7 @@
   display: flex;
   align-items: center;
   border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  flex-wrap: wrap;
 }
 
 .mn-mood-emoji {
@@ -69,6 +70,15 @@
 
 .mn-mood-text {
   font-weight: 500;
+}
+
+.mn-error {
+  color: #ff6b6b;
+  font-size: 12px;
+  margin-top: 8px;
+  width: 100%;
+  padding-top: 8px;
+  border-top: 1px dashed rgba(255, 255, 255, 0.1);
 }
 
 #mn-notes-display {
@@ -110,4 +120,70 @@
 
 #mn-notes-display::-webkit-scrollbar-thumb:hover {
   background: rgba(255, 255, 255, 0.4);
+}
+
+/* Loading/status indicators */
+.mn-status {
+  font-size: 12px;
+  opacity: 0.7;
+  text-align: center;
+  margin: 0;
+  padding: 8px;
+  font-style: italic;
+  background-color: rgba(0, 0, 0, 0.1);
+  position: relative;
+}
+
+.mn-status.loading::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  height: 2px;
+  width: 20%;
+  background: linear-gradient(90deg, rgba(99, 102, 241, 1) 0%, rgba(139, 92, 246, 1) 100%);
+  animation: loading 1.5s infinite ease-in-out;
+}
+
+@keyframes loading {
+  0% {
+    left: 0;
+    width: 0;
+  }
+  50% {
+    width: 40%;
+  }
+  100% {
+    left: 100%;
+    width: 0;
+  }
+}
+
+/* Emotion-specific colors */
+.mn-emotion-happy .mn-mood-emoji {
+  color: #4cd137;
+}
+
+.mn-emotion-sad .mn-mood-emoji {
+  color: #7f8fa6;
+}
+
+.mn-emotion-angry .mn-mood-emoji {
+  color: #e84118;
+}
+
+.mn-emotion-surprised .mn-mood-emoji {
+  color: #fbc531;
+}
+
+.mn-emotion-fearful .mn-mood-emoji {
+  color: #9c88ff;
+}
+
+.mn-emotion-disgusted .mn-mood-emoji {
+  color: #8c7ae6;
+}
+
+.mn-emotion-neutral .mn-mood-emoji {
+  color: #dcdde1;
 } 

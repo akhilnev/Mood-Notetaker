@@ -6,6 +6,9 @@ let isActive = false;
 let currentMood = 'Neutral';
 let currentBullets = [];
 let overlayElement = null;
+let emotionDetector = null;
+let audioCapturer = null;
+let statusElement = null;
 
 // Create and inject overlay
 function createOverlay() {
@@ -39,10 +42,17 @@ function createOverlay() {
   notesDisplay.id = 'mn-notes-display';
   notesDisplay.innerHTML = '<div class="mn-notes-placeholder">Waiting for notes...</div>';
   
+  // Create status indicator
+  const status = document.createElement('div');
+  status.className = 'mn-status';
+  status.id = 'mn-status';
+  status.textContent = 'Ready to start';
+  
   // Assemble the overlay
   overlay.appendChild(header);
   overlay.appendChild(moodDisplay);
   overlay.appendChild(notesDisplay);
+  overlay.appendChild(status);
   
   // Add to page
   document.body.appendChild(overlay);
@@ -55,6 +65,7 @@ function createOverlay() {
   document.getElementById('mn-close-btn').addEventListener('click', hideOverlay);
   
   overlayElement = overlay;
+  statusElement = status;
   return overlay;
 }
 
@@ -93,8 +104,42 @@ function makeElementDraggable(element) {
   }
 }
 
+// Initialize the EmotionDetector
+function initEmotionDetector() {
+  if (!emotionDetector) {
+    emotionDetector = new EmotionDetector();
+  }
+}
+
+// Initialize the AudioCapturer
+function initAudioCapturer() {
+  if (!audioCapturer) {
+    audioCapturer = new AudioCapturer();
+  }
+}
+
+// Update status indicator
+function updateStatus(status) {
+  if (statusElement) {
+    statusElement.textContent = status;
+    
+    // Check if this is a loading/processing status
+    const isLoading = status.includes('Initializing') || 
+                     status.includes('Transcribing') || 
+                     status.includes('Recording') || 
+                     status.includes('Generating') ||
+                     status.includes('Processing');
+    
+    if (isLoading) {
+      statusElement.classList.add('loading');
+    } else {
+      statusElement.classList.remove('loading');
+    }
+  }
+}
+
 // Toggle active state
-function toggleActive() {
+async function toggleActive() {
   isActive = !isActive;
   
   const toggleBtn = document.getElementById('mn-toggle-btn');
@@ -103,13 +148,51 @@ function toggleActive() {
   }
   
   if (isActive) {
+    updateStatus('Initializing...');
+    
+    // Initialize emotion detector if needed
+    initEmotionDetector();
+    
+    // Start emotion detection
+    const emotionSuccess = await emotionDetector.start(updateMoodUI);
+    if (!emotionSuccess) {
+      console.error('Failed to start emotion detection');
+      // Show error in UI
+      const moodDisplay = document.getElementById('mn-mood-display');
+      if (moodDisplay) {
+        moodDisplay.innerHTML += '<div class="mn-error">Failed to access camera</div>';
+      }
+    }
+    
+    // Initialize audio capturer if needed
+    initAudioCapturer();
+    
+    // Start audio capture
+    const audioSuccess = await audioCapturer.start(updateStatus);
+    if (!audioSuccess) {
+      console.error('Failed to start audio capture');
+      // Show error in UI
+      updateStatus('Failed to access microphone');
+    }
+    
     // Notify background script to start processing
     chrome.runtime.sendMessage({ type: 'start' });
     console.log('Mood Notetaker: Started');
   } else {
+    // Stop emotion detection
+    if (emotionDetector) {
+      emotionDetector.stop();
+    }
+    
+    // Stop audio capture
+    if (audioCapturer) {
+      audioCapturer.stop();
+    }
+    
     // Notify background script to stop processing
     chrome.runtime.sendMessage({ type: 'stop' });
     console.log('Mood Notetaker: Stopped');
+    updateStatus('Stopped');
   }
 }
 
@@ -117,8 +200,18 @@ function toggleActive() {
 function hideOverlay() {
   if (overlayElement) {
     overlayElement.style.display = 'none';
-    isActive = false;
-    chrome.runtime.sendMessage({ type: 'stop' });
+    
+    // Stop processing if active
+    if (isActive) {
+      isActive = false;
+      if (emotionDetector) {
+        emotionDetector.stop();
+      }
+      if (audioCapturer) {
+        audioCapturer.stop();
+      }
+      chrome.runtime.sendMessage({ type: 'stop' });
+    }
   }
 }
 
@@ -141,6 +234,16 @@ function updateMoodUI(mood) {
   
   const moodDisplay = document.getElementById('mn-mood-display');
   if (moodDisplay) {
+    // Remove any previous emotion classes
+    const emotionClasses = ['mn-emotion-happy', 'mn-emotion-sad', 'mn-emotion-angry', 
+                            'mn-emotion-surprised', 'mn-emotion-fearful', 'mn-emotion-disgusted', 
+                            'mn-emotion-neutral'];
+    moodDisplay.classList.remove(...emotionClasses);
+    
+    // Add current emotion class
+    moodDisplay.classList.add(`mn-emotion-${mood.toLowerCase()}`);
+    
+    // Update content
     moodDisplay.innerHTML = `<span class="mn-mood-emoji">${emoji}</span> <span class="mn-mood-text">Mood: ${mood}</span>`;
   }
 }
@@ -175,7 +278,10 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       updateNotesUI(message.bullets);
       break;
     case 'status':
-      // Update status (e.g., "Transcribing...", "Processing...")
+      // Update status message
+      if (message.message) {
+        updateStatus(message.message);
+      }
       break;
     case 'get_status':
       // Respond with current state for popup
@@ -227,6 +333,8 @@ document.addEventListener('DOMContentLoaded', () => {
     // Wait a bit for meeting UI to load completely
     setTimeout(() => {
       createOverlay();
+      initEmotionDetector();
+      initAudioCapturer();
     }, 3000);
   }
 });
@@ -237,6 +345,8 @@ if (document.readyState === 'complete' || document.readyState === 'interactive')
     console.log('Mood Notetaker: Detected meeting page (immediate)');
     setTimeout(() => {
       createOverlay();
+      initEmotionDetector();
+      initAudioCapturer();
     }, 3000);
   }
 } 

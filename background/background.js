@@ -1,183 +1,343 @@
 // Mood Notetaker Background Service Worker
 console.log('Mood Notetaker: Background service worker started');
 
-// Track active tabs running the extension
-const activeTabs = new Map();
+import config from '../config.js';
 
-// Configuration (will be expanded later)
-const config = {
-  emotionDetectionIntervalMs: 2000,
-  transcriptionChunkMs: 5000,
-  summarizationIntervalMs: 20000
-};
+// Initialize state
+let activeTabs = {};
 
-// Helper function to check if a tab is active
-function isTabActive(tabId) {
-  return activeTabs.has(tabId) && activeTabs.get(tabId).active;
+// Helper function to create new tab state
+function createTabState() {
+  return {
+    isProcessing: false,
+    transcriptionBuffer: [],
+    summarizationTimer: null,
+    currentEmotions: {},
+    summaries: [],
+    capturedChunks: [],
+    processingInProgress: false
+  };
 }
 
-// Initialize a tab's processing
-function initTab(tabId) {
-  if (!activeTabs.has(tabId)) {
-    activeTabs.set(tabId, {
-      active: false,
-      transcript: '',
-      lastSummarizedAt: 0,
-      currentBullets: []
-    });
-  }
-  return activeTabs.get(tabId);
-}
-
-// Handle messages from content script
+// Handle messages from content scripts
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  if (!message || !message.type || !sender.tab) return;
+  console.log('Message received in background:', message.type);
   
-  const tabId = sender.tab.id;
-  console.log(`Received message from tab ${tabId}:`, message.type);
+  const tabId = sender.tab?.id;
+  if (!tabId) {
+    console.error('No tab ID found in sender');
+    return;
+  }
   
   switch (message.type) {
-    case 'start':
-      handleStart(tabId);
+    case 'START_PROCESSING':
+      startProcessing(tabId);
+      sendResponse({ status: 'started' });
       break;
-    case 'stop':
-      handleStop(tabId);
+      
+    case 'STOP_PROCESSING':
+      stopProcessing(tabId);
+      sendResponse({ status: 'stopped' });
       break;
-    case 'audio_chunk':
-      handleAudioChunk(tabId, message.data);
+      
+    case 'AUDIO_DATA':
+      handleAudioChunk(message.data, tabId);
       break;
-    case 'video_frame':
-      handleVideoFrame(tabId, message.data);
+      
+    case 'EMOTION_UPDATE':
+      updateEmotion(message.data, tabId);
       break;
-    default:
-      console.log('Unknown message type:', message.type);
+      
+    case 'GET_STATE':
+      sendResponse({
+        isProcessing: activeTabs[tabId]?.isProcessing || false,
+        currentEmotions: activeTabs[tabId]?.currentEmotions || {},
+        summaries: activeTabs[tabId]?.summaries || []
+      });
       break;
   }
   
-  // Use sendResponse if needed (for synchronous responses)
-  // or use chrome.tabs.sendMessage for async responses
+  return true; // Keep the message channel open for async response
 });
 
-// Handle start request
-function handleStart(tabId) {
-  const tabData = initTab(tabId);
-  tabData.active = true;
+// Start processing for a tab
+function startProcessing(tabId) {
+  console.log('Starting processing for tab', tabId);
   
-  console.log(`Starting processing for tab ${tabId}`);
+  if (!activeTabs[tabId]) {
+    activeTabs[tabId] = createTabState();
+  }
   
-  // Send acknowledgment back to content script
-  chrome.tabs.sendMessage(tabId, { 
-    type: 'status', 
-    status: 'started',
-    message: 'Mood Notetaker is now active'
-  });
+  const tabState = activeTabs[tabId];
   
-  // In the future, we'll set up recurring tasks here
+  if (!tabState.isProcessing) {
+    tabState.isProcessing = true;
+    
+    // Schedule summarization
+    scheduleSummarization(tabId);
+    
+    // Notify content script that processing has started
+    chrome.tabs.sendMessage(tabId, { type: 'PROCESSING_STARTED' });
+  }
 }
 
-// Handle stop request
-function handleStop(tabId) {
-  if (activeTabs.has(tabId)) {
-    const tabData = activeTabs.get(tabId);
-    tabData.active = false;
+// Stop processing for a tab
+function stopProcessing(tabId) {
+  console.log('Stopping processing for tab', tabId);
+  
+  if (activeTabs[tabId] && activeTabs[tabId].isProcessing) {
+    const tabState = activeTabs[tabId];
     
-    console.log(`Stopping processing for tab ${tabId}`);
+    // Clear summarization timer
+    if (tabState.summarizationTimer) {
+      clearTimeout(tabState.summarizationTimer);
+      tabState.summarizationTimer = null;
+    }
     
-    // Clean up any resources (will be expanded later)
+    // Process any remaining audio in the buffer
+    if (tabState.transcriptionBuffer.length > 0) {
+      processTranscriptionBuffer(tabId);
+    }
     
-    // Send acknowledgment
-    chrome.tabs.sendMessage(tabId, { 
-      type: 'status', 
-      status: 'stopped',
-      message: 'Mood Notetaker is now inactive'
-    });
+    tabState.isProcessing = false;
+    
+    // Notify content script that processing has stopped
+    chrome.tabs.sendMessage(tabId, { type: 'PROCESSING_STOPPED' });
+  }
+}
+
+// Schedule summarization at regular intervals
+function scheduleSummarization(tabId) {
+  const tabState = activeTabs[tabId];
+  
+  if (tabState && tabState.isProcessing) {
+    // Clear existing timer if any
+    if (tabState.summarizationTimer) {
+      clearTimeout(tabState.summarizationTimer);
+    }
+    
+    // Set new timer
+    tabState.summarizationTimer = setTimeout(() => {
+      generateSummary(tabId);
+      scheduleSummarization(tabId); // Schedule the next summarization
+    }, config.summarizationIntervalMs);
   }
 }
 
 // Handle incoming audio chunk
-async function handleAudioChunk(tabId, audioData) {
-  if (!isTabActive(tabId)) return;
+function handleAudioChunk(audioData, tabId) {
+  if (!activeTabs[tabId] || !activeTabs[tabId].isProcessing) {
+    return;
+  }
   
-  const tabData = activeTabs.get(tabId);
+  const tabState = activeTabs[tabId];
   
-  console.log(`Processing audio chunk from tab ${tabId}`);
+  // Add the audio chunk to the buffer
+  tabState.capturedChunks.push(audioData);
   
-  // In the real implementation, we would:
-  // 1. Send audio to Whisper API for transcription
-  // 2. Add the transcription to the tab's transcript
-  // 3. Check if it's time to summarize
-  // 4. If yes, send to GPT for summarization
-  
-  // For now, let's simulate this with dummy data
-  setTimeout(() => {
-    // Simulate receiving transcript
-    const dummyTranscript = "This is a simulated transcript from an audio chunk.";
-    tabData.transcript += " " + dummyTranscript;
-    
-    // Check if it's time to summarize
-    const now = Date.now();
-    if (now - tabData.lastSummarizedAt >= config.summarizationIntervalMs) {
-      tabData.lastSummarizedAt = now;
-      
-      // Simulate summarization
-      const dummyBullets = [
-        "First key point from the simulated conversation",
-        "Second important point discussed",
-        "Action item: follow up on the demo"
-      ];
-      
-      tabData.currentBullets = dummyBullets;
-      
-      // Send bullets to content script
-      chrome.tabs.sendMessage(tabId, {
-        type: 'notes_update',
-        bullets: dummyBullets
-      });
-    }
-  }, 1000); // Simulate processing delay
+  // Check if we have enough data to process
+  if (tabState.capturedChunks.length >= 5) { // Process after collecting several chunks
+    processAudioChunks(tabId);
+  }
 }
 
-// Handle incoming video frame
-async function handleVideoFrame(tabId, frameData) {
-  if (!isTabActive(tabId)) return;
+// Process collected audio chunks
+async function processAudioChunks(tabId) {
+  const tabState = activeTabs[tabId];
   
-  console.log(`Processing video frame from tab ${tabId}`);
+  if (!tabState || tabState.capturedChunks.length === 0 || tabState.processingInProgress) {
+    return;
+  }
   
-  // In the real implementation, we would:
-  // 1. Process the frame data to detect emotion
-  // 2. Send the detected emotion back to content script
+  // Set processing flag to prevent concurrent processing
+  tabState.processingInProgress = true;
   
-  // For now, simulate with dummy data
-  setTimeout(() => {
-    // Simulate detecting different emotions randomly
-    const emotions = ['Happy', 'Neutral', 'Surprised', 'Concentrating'];
-    const randomEmotion = emotions[Math.floor(Math.random() * emotions.length)];
-    
-    // Send the emotion to content script
-    chrome.tabs.sendMessage(tabId, {
-      type: 'mood_update',
-      mood: randomEmotion
-    });
-  }, 500); // Simulate processing delay
-}
-
-// Clean up inactive tabs periodically
-setInterval(() => {
-  for (const [tabId, tabData] of activeTabs.entries()) {
-    if (!tabData.active) {
-      // Check if tab has been inactive for a while
-      if (tabData.lastActiveTime && Date.now() - tabData.lastActiveTime > 10 * 60 * 1000) { // 10 minutes
-        activeTabs.delete(tabId);
-        console.log(`Removed inactive tab ${tabId} from tracking`);
+  try {
+    if (!config.openaiApiKey || config.openaiApiKey === 'your-openai-api-key-here') {
+      simulateTranscription(tabId);
+    } else {
+      // Implement actual Whisper API call
+      const transcript = await transcribeWithWhisper(tabState.capturedChunks);
+      
+      if (transcript) {
+        tabState.transcriptionBuffer.push({
+          text: transcript,
+          timestamp: new Date().toISOString(),
+          emotions: tabState.currentEmotions
+        });
+        
+        chrome.tabs.sendMessage(tabId, {
+          type: 'TRANSCRIPTION_UPDATED',
+          data: { 
+            text: transcript,
+            emotions: tabState.currentEmotions
+          }
+        });
       }
     }
+  } catch (error) {
+    console.error("Transcription error:", error);
+  } finally {
+    tabState.capturedChunks = [];
+    tabState.processingInProgress = false;
   }
-}, 60 * 1000); // Check every minute
+}
 
-// Listen for tab close events
+// Update emotion data for a tab
+function updateEmotion(emotionData, tabId) {
+  if (!activeTabs[tabId]) {
+    activeTabs[tabId] = createTabState();
+  }
+  
+  activeTabs[tabId].currentEmotions = emotionData;
+  
+  // Notify content script about the emotion update
+  chrome.tabs.sendMessage(tabId, {
+    type: 'EMOTION_UPDATED',
+    data: emotionData
+  });
+}
+
+// Simulate transcription for demo purposes
+function simulateTranscription(tabId) {
+  const tabState = activeTabs[tabId];
+  
+  // Demo transcription texts
+  const demoTexts = [
+    "I think we should focus on improving the user experience.",
+    "The deadline for this project is next Friday.",
+    "I'm concerned about the performance issues we're seeing.",
+    "Let's schedule another meeting to discuss the details.",
+    "I agree with that approach, it makes sense to proceed this way.",
+    "We need to prioritize fixing the critical bugs before release.",
+    "The new design looks much better than the previous version.",
+    "I'm not sure if we have enough resources for this task.",
+    "The client requested some changes to the homepage layout.",
+    "We've made significant progress since our last meeting."
+  ];
+  
+  // Select a random text
+  const randomText = demoTexts[Math.floor(Math.random() * demoTexts.length)];
+  
+  // Add to transcription buffer
+  tabState.transcriptionBuffer.push({
+    text: randomText,
+    timestamp: new Date().toISOString(),
+    emotions: tabState.currentEmotions
+  });
+  
+  // Notify content script
+  chrome.tabs.sendMessage(tabId, {
+    type: 'TRANSCRIPTION_UPDATED',
+    data: {
+      text: randomText,
+      emotions: tabState.currentEmotions
+    }
+  });
+}
+
+// Process the transcription buffer
+function processTranscriptionBuffer(tabId) {
+  const tabState = activeTabs[tabId];
+  
+  if (!tabState || tabState.transcriptionBuffer.length === 0) {
+    return;
+  }
+  
+  // In a real implementation, we might store this in chrome.storage
+  // or send to a server for persistence
+  console.log('Processing transcription buffer for tab', tabId);
+}
+
+// Generate summary from transcriptions
+async function generateSummary(tabId) {
+  const tabState = activeTabs[tabId];
+  
+  if (!tabState || tabState.transcriptionBuffer.length === 0) {
+    return;
+  }
+  
+  const transcriptionTexts = tabState.transcriptionBuffer.map(t => t.text).join(' ');
+  
+  if (transcriptionTexts.length < 50) return;
+  
+  try {
+    if (!config.openaiApiKey || config.openaiApiKey === 'your-openai-api-key-here') {
+      simulateSummary(tabId, transcriptionTexts);
+    } else {
+      // Implement actual GPT API call
+      const summary = await summarizeWithGPT(transcriptionTexts);
+      
+      if (summary) {
+        const timestamp = new Date().toISOString();
+        
+        tabState.summaries.push({
+          text: summary,
+          timestamp: timestamp,
+          emotions: { ...tabState.currentEmotions }
+        });
+        
+        tabState.transcriptionBuffer = [];
+        
+        chrome.tabs.sendMessage(tabId, {
+          type: 'SUMMARY_UPDATED',
+          data: {
+            text: summary,
+            timestamp: timestamp,
+            emotions: { ...tabState.currentEmotions }
+          }
+        });
+      }
+    }
+  } catch (error) {
+    console.error("Summarization error:", error);
+  }
+}
+
+// Simulate summary generation for demo purposes
+function simulateSummary(tabId, transcriptionText) {
+  const tabState = activeTabs[tabId];
+  
+  // Demo summaries
+  const demoSummaries = [
+    "The team discussed UI improvements and set a deadline for next Friday.",
+    "There are concerns about performance issues that need to be addressed.",
+    "Progress was made on the project, but resource constraints were mentioned.",
+    "The team agreed on a new approach and prioritized fixing critical bugs.",
+    "Client requested homepage changes, and the team reviewed the new design."
+  ];
+  
+  // Select a random summary
+  const randomSummary = demoSummaries[Math.floor(Math.random() * demoSummaries.length)];
+  
+  // Add timestamp
+  const timestamp = new Date().toISOString();
+  
+  // Add to summaries
+  tabState.summaries.push({
+    text: randomSummary,
+    timestamp: timestamp,
+    emotions: { ...tabState.currentEmotions }
+  });
+  
+  // Clear transcription buffer after summarization
+  tabState.transcriptionBuffer = [];
+  
+  // Notify content script
+  chrome.tabs.sendMessage(tabId, {
+    type: 'SUMMARY_UPDATED',
+    data: {
+      text: randomSummary,
+      timestamp: timestamp,
+      emotions: { ...tabState.currentEmotions }
+    }
+  });
+}
+
+// Handle tab removal
 chrome.tabs.onRemoved.addListener((tabId) => {
-  if (activeTabs.has(tabId)) {
-    activeTabs.delete(tabId);
-    console.log(`Tab ${tabId} closed, removed from tracking`);
+  if (activeTabs[tabId]) {
+    stopProcessing(tabId);
+    delete activeTabs[tabId];
   }
 }); 

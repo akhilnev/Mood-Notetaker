@@ -1,0 +1,22 @@
+# API keys and secrets
+config.js
+.env
+
+# Node modules
+node_modules/
+
+# Build directories
+dist/
+build/
+
+# Logs
+*.log
+
+# OS-specific files
+.DS_Store
+Thumbs.db
+
+# IDE/Editor folders
+.idea/
+.vscode/
+*.sublime-*
