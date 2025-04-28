@@ -72,11 +72,16 @@ async function startSession() {
       emotionDetector.start(updateMood);
       
       // Start audio processor
-      await audioProcessor.start(
-        updateStatus,
-        updateTranscript,
-        updateSummary
-      );
+      console.log('Starting audio processor');
+      try {
+        await audioProcessor.start(
+          updateStatus,
+          updateTranscript,
+          updateSummary
+        );
+      } catch (error) {
+        console.error('Failed to start audio processor:', error);
+      }
       
       isRunning = true;
       updateStatus('Session active');
