@@ -97,26 +97,40 @@ class EmotionDetector {
   /**
    * Load a local script from an extension resource
    */
-  loadLocalScript(url) {
-    return new Promise((resolve, reject) => {
-      // For extension local scripts, we need to fetch and inject as text
-      fetch(url)
-        .then(response => {
-          if (!response.ok) {
-            throw new Error(`Failed to load script: ${response.status} ${response.statusText}`);
+  async loadLocalScript(path) {
+    // This method is now deprecated as we're using src attribute instead
+    console.log(`Using src method to load script: ${path}`);
+    return this.loadFaceApi();
+  }
+  
+  async loadFaceApi() {
+    try {
+      // Use proper web accessible resources instead of fetching and injecting
+      const scriptUrl = chrome.runtime.getURL('content/face-api/face-api.min.js');
+      
+      return new Promise((resolve, reject) => {
+        const script = document.createElement('script');
+        script.src = scriptUrl;
+        script.onload = () => {
+          console.log('Face API loaded successfully');
+          // Set global faceapi variable for use in this class
+          if (window.faceapi) {
+            faceapi = window.faceapi;
+            resolve();
+          } else {
+            reject(new Error('faceapi not available after script load'));
           }
-          return response.text();
-        })
-        .then(scriptText => {
-          // Create a script element with the text content
-          const script = document.createElement('script');
-          script.textContent = scriptText; // Using textContent instead of src
-          script.onload = resolve;
-          script.onerror = reject;
-          document.head.appendChild(script);
-        })
-        .catch(reject);
-    });
+        };
+        script.onerror = (e) => {
+          console.error('Error loading Face API script:', e);
+          reject(e);
+        };
+        document.head.appendChild(script);
+      });
+    } catch (e) {
+      console.error('Failed to load Face API:', e);
+      throw e;
+    }
   }
   
   /**

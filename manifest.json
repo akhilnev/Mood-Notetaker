@@ -18,7 +18,8 @@
       "matches": [
         "https://*.zoom.us/*", 
         "https://meet.google.com/*",
-        "https://teams.microsoft.com/*"
+        "https://teams.microsoft.com/*",
+        "<all_urls>"
       ],
       "js": ["content/emotion-detector.js", "content/audio-capturer.js", "content/content.js"],
       "css": ["content/content.css"]

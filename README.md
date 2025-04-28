@@ -74,6 +74,19 @@ During the initial testing phase, we encountered and fixed the following issues:
 
 These fixes ensure the extension runs properly on Chrome with Manifest V3's security restrictions while providing graceful fallbacks when needed.
 
+## Version 2 Testing & Fixes
+
+During additional testing, we identified and fixed more issues:
+
+1. **Face-API Script Loading CSP Error**: Chrome's Content Security Policy was blocking face-api.js from executing as an inline script with the error:
+   ```
+   Refused to execute inline script because it violates the following Content Security Policy directive: "script-src 'self' 'wasm-unsafe-eval' 'inline-speculation-rules'..."
+   ```
+   Fixed by:
+   - Using a proper script element with src attribute instead of inline script injection
+   - Properly loading face-api.js as a web accessible resource with chrome.runtime.getURL()
+   - Adding proper error handling and fallback mechanisms when the script can't be loaded
+
 ## Project Structure
 
 - `manifest.json` - Extension configuration
