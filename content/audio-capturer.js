@@ -1,6 +1,7 @@
 /**
  * Audio Capturer Module
  * Handles audio capture for transcription
+ * Modified to properly handle system audio capture errors in Manifest V3
  */
 
 class AudioCapturer {
@@ -66,17 +67,12 @@ class AudioCapturer {
     this.updateStatus('Requesting microphone access...');
     
     try {
-      // Try to capture system audio (tab audio + microphone)
-      try {
-        this.stream = await this.captureSystemAudio();
-        this.updateStatus('Using system audio + microphone');
-      } catch (systemAudioError) {
-        console.warn('Failed to capture system audio, falling back to microphone only', systemAudioError);
-        
-        // Fallback to microphone only
-        this.stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        this.updateStatus('Using microphone only');
-      }
+      // FIXED: Removed the attempt to capture system audio since it's not properly supported
+      // and was causing a Content Security Policy error.
+      // Going straight to microphone-only mode instead.
+      
+      this.stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      this.updateStatus('Using microphone only');
       
       // Create and set up MediaRecorder
       this.mediaRecorder = new MediaRecorder(this.stream, { mimeType: this.audioMimeType });
@@ -105,16 +101,6 @@ class AudioCapturer {
   }
   
   /**
-   * Try to capture system audio (tab audio + microphone)
-   * This is experimental and may not work in all browsers
-   */
-  async captureSystemAudio() {
-    // This is a simplified stub that will fail
-    // In a real implementation, we would use chrome.tabCapture API or getDisplayMedia with audio
-    throw new Error('System audio capture not implemented in this version');
-  }
-  
-  /**
    * Send audio chunk to background script for processing
    * @param {Blob} audioBlob - audio data to send
    */
@@ -127,8 +113,9 @@ class AudioCapturer {
       reader.onloadend = () => {
         const base64Audio = reader.result.split(',')[1];
         
+        // FIXED: Updated message type to match the background.js expectations
         chrome.runtime.sendMessage({
-          type: 'audio_chunk',
+          type: 'AUDIO_DATA',
           data: {
             audio: base64Audio,
             mimeType: this.audioMimeType

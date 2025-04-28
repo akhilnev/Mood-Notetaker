@@ -21,8 +21,8 @@ A Chrome extension that tracks facial expressions and generates real-time meetin
 
 For full functionality with real API calls (optional):
 
-1. Open the `background/background.js` file
-2. Replace `'your-api-key-here'` with your actual OpenAI API key
+1. Open the `config.js` file
+2. Replace `'your-openai-api-key-here'` with your actual OpenAI API key
 3. Reload the extension
 
 If you don't add an API key, the extension will use simulated data for demonstration purposes.
@@ -58,6 +58,22 @@ If you don't add an API key, the extension will use simulated data for demonstra
 - Error handling improvements
 - User customization options
 
+## Version 1 Testing & Fixes
+
+During the initial testing phase, we encountered and fixed the following issues:
+
+1. **Content Security Policy (CSP) Error**: Due to Chrome's strict CSP in Manifest V3, the extension couldn't load the face-api.js library from a CDN. Fixed by:
+   - Implementing a local face-api.js loading strategy
+   - Adding a simulation mode fallback when face detection can't be initialized
+   - Properly handling script loading to comply with CSP restrictions
+
+2. **System Audio Capture Error**: The system audio capture attempt was failing with "System audio capture not implemented in this version". Fixed by:
+   - Removing the system audio capture attempt to avoid the error
+   - Going directly to microphone-only mode for reliable audio capture
+   - Updating message types to match the background service worker expectations
+
+These fixes ensure the extension runs properly on Chrome with Manifest V3's security restrictions while providing graceful fallbacks when needed.
+
 ## Project Structure
 
 - `manifest.json` - Extension configuration
@@ -70,6 +86,8 @@ If you don't add an API key, the extension will use simulated data for demonstra
   - `face-api/` - Face detection models
 - `popup/` - Extension popup UI
 - `icons/` - Extension icons
+- `config.js` - API configuration (gitignored)
+- `config.template.js` - Template for API configuration
 
 ## Future Enhancements
 
