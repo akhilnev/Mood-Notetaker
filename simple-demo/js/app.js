@@ -1,5 +1,5 @@
 /**
- * Main application script for Mood Notetaker Demo
+ * Main application script for Mood Notetaker
  */
 
 // Main app state
@@ -16,9 +16,24 @@ const startButton = document.getElementById('startBtn');
 const stopButton = document.getElementById('stopBtn');
 const moodEmoji = document.getElementById('mood-emoji');
 const moodText = document.getElementById('mood-text');
+const moodDescription = document.querySelector('.mood-description');
 const transcriptElement = document.getElementById('transcript');
 const summaryElement = document.getElementById('summary');
 const statusElement = document.getElementById('status');
+const cameraContainer = document.querySelector('.camera-container');
+const cameraOverlay = document.querySelector('.camera-overlay-text');
+const cameraStatus = document.querySelector('.camera-status');
+
+// Mood descriptions
+const moodDescriptions = {
+  'happy': 'Positive emotions detected in facial expressions.',
+  'sad': 'Indicators of sadness observed in expressions.',
+  'angry': 'Signs of frustration detected in facial features.',
+  'surprised': 'Expressions indicate surprise or astonishment.',
+  'fearful': 'Facial indicators suggest concern or unease.',
+  'disgusted': 'Expressions suggest discomfort or displeasure.',
+  'neutral': 'No strong emotional indicators currently detected.'
+};
 
 // Initialize the app when the page loads
 document.addEventListener('DOMContentLoaded', init);
@@ -27,7 +42,7 @@ document.addEventListener('DOMContentLoaded', init);
  * Initialize the application
  */
 async function init() {
-  console.log('Initializing Mood Notetaker Demo');
+  console.log('Initializing Mood Notetaker');
   
   // Set up event listeners
   startButton.addEventListener('click', startSession);
@@ -37,7 +52,24 @@ async function init() {
   emotionDetector = new EmotionDetector();
   audioProcessor = new AudioProcessor();
   
+  // Set canvas dimensions
+  updateCanvasDimensions();
+  
+  // Update canvas dimensions on window resize
+  window.addEventListener('resize', updateCanvasDimensions);
+  
   updateStatus('Ready to start');
+}
+
+/**
+ * Update canvas dimensions to match window size
+ */
+function updateCanvasDimensions() {
+  const width = cameraContainer.clientWidth;
+  const height = cameraContainer.clientHeight;
+  
+  canvasElement.width = width;
+  canvasElement.height = height;
 }
 
 /**
@@ -52,11 +84,14 @@ async function startSession() {
   updateStatus('Starting session...');
   
   try {
-    // Access webcam
+    // Hide camera overlay with animation
+    cameraStatus.textContent = 'Activating camera...';
+    
+    // Access webcam with higher resolution
     const stream = await navigator.mediaDevices.getUserMedia({
       video: {
-        width: 640,
-        height: 480,
+        width: { ideal: 1920 },
+        height: { ideal: 1080 },
         facingMode: 'user'
       }
     });
@@ -66,6 +101,17 @@ async function startSession() {
     videoElement.onloadedmetadata = async () => {
       // Start video playback
       await videoElement.play();
+      
+      // Add active class for animation
+      cameraContainer.classList.add('active');
+      
+      // Hide overlay after animation completes
+      setTimeout(() => {
+        cameraOverlay.classList.add('hidden');
+      }, 500);
+      
+      // Update canvas dimensions
+      updateCanvasDimensions();
       
       // Initialize emotion detector
       await emotionDetector.initialize(videoElement, canvasElement);
@@ -84,11 +130,11 @@ async function startSession() {
       }
       
       isRunning = true;
-      updateStatus('Session active');
+      updateStatus('<span class="status-tag status-active">Active</span> Session in progress');
     };
   } catch (error) {
     console.error('Failed to start session:', error);
-    updateStatus('Error: ' + (error.message || 'Failed to access camera'));
+    updateStatus('<span class="status-tag status-inactive">Error</span> ' + (error.message || 'Failed to access camera'));
     resetUI();
   }
 }
@@ -118,6 +164,13 @@ function stopSession() {
   // Clear canvas
   const ctx = canvasElement.getContext('2d');
   ctx.clearRect(0, 0, canvasElement.width, canvasElement.height);
+  
+  // Show camera overlay
+  cameraOverlay.classList.remove('hidden');
+  cameraStatus.textContent = 'Camera inactive';
+  
+  // Remove active class
+  cameraContainer.classList.remove('active');
   
   isRunning = false;
   resetUI();
@@ -158,9 +211,30 @@ function updateMood(mood) {
   // Add current mood class
   moodEmoji.classList.add(`mood-${mood.toLowerCase()}`);
   
-  // Update content
-  moodEmoji.textContent = emoji;
-  moodText.textContent = mood;
+  // Update content with animation
+  animateElement(moodEmoji, () => {
+    moodEmoji.textContent = emoji;
+  });
+  
+  animateElement(moodText, () => {
+    moodText.textContent = mood;
+  });
+  
+  // Update description
+  moodDescription.textContent = moodDescriptions[mood.toLowerCase()] || moodDescriptions.neutral;
+}
+
+/**
+ * Simple animation for element updates
+ */
+function animateElement(element, updateFn) {
+  element.style.transition = 'opacity 0.2s ease';
+  element.style.opacity = '0';
+  
+  setTimeout(() => {
+    updateFn();
+    element.style.opacity = '1';
+  }, 200);
 }
 
 /**
@@ -178,6 +252,13 @@ function updateTranscript(text) {
   // Update display
   transcriptElement.innerHTML = recentTranscripts.map(t => `<p>${t}</p>`).join('');
   
+  // Highlight the newest transcript
+  const paragraphs = transcriptElement.querySelectorAll('p');
+  if (paragraphs.length > 0) {
+    const newest = paragraphs[paragraphs.length - 1];
+    newest.style.animation = 'fadeIn 0.5s ease';
+  }
+  
   // Scroll to bottom
   transcriptElement.scrollTop = transcriptElement.scrollHeight;
 }
@@ -186,14 +267,21 @@ function updateTranscript(text) {
  * Update the summary display
  */
 function updateSummary(text) {
-  summaryElement.textContent = text;
+  // Update with animation
+  summaryElement.style.transition = 'opacity 0.3s ease';
+  summaryElement.style.opacity = '0.5';
+  
+  setTimeout(() => {
+    summaryElement.textContent = text;
+    summaryElement.style.opacity = '1';
+  }, 300);
 }
 
 /**
  * Update status message
  */
 function updateStatus(status) {
-  statusElement.textContent = status;
+  statusElement.innerHTML = status;
   
   // Add loading animation for certain statuses
   const isLoading = status.includes('Starting') || 
@@ -207,4 +295,14 @@ function updateStatus(status) {
   } else {
     statusElement.classList.remove('loading');
   }
-} 
+}
+
+// Add fade-in animation for page load
+document.addEventListener('DOMContentLoaded', () => {
+  document.body.style.opacity = '0';
+  document.body.style.transition = 'opacity 0.5s ease';
+  
+  setTimeout(() => {
+    document.body.style.opacity = '1';
+  }, 100);
+}); 
