@@ -9,11 +9,18 @@ let audioProcessor = null;
 let recentTranscripts = [];
 const MAX_TRANSCRIPTS = 5; // Max number of transcripts to show
 
+// Feature components
+let exporter = null;
+let notesUploader = null;
+let nudgeEngine = null;
+let textHighlighter = null;
+
 // DOM elements
 const videoElement = document.getElementById('video');
 const canvasElement = document.getElementById('overlay');
 const startButton = document.getElementById('startBtn');
 const stopButton = document.getElementById('stopBtn');
+const exportButton = document.getElementById('exportBtn');
 const moodEmoji = document.getElementById('mood-emoji');
 const moodText = document.getElementById('mood-text');
 const moodDescription = document.querySelector('.mood-description');
@@ -23,6 +30,7 @@ const statusElement = document.getElementById('status');
 const cameraContainer = document.querySelector('.camera-container');
 const cameraOverlay = document.querySelector('.camera-overlay-text');
 const cameraStatus = document.querySelector('.camera-status');
+const notesContainer = document.getElementById('notes-container');
 
 // Mood descriptions
 const moodDescriptions = {
@@ -47,16 +55,31 @@ async function init() {
   // Set up event listeners
   startButton.addEventListener('click', startSession);
   stopButton.addEventListener('click', stopSession);
+  exportButton.addEventListener('click', exportSession);
   
-  // Initialize components
+  // Initialize core components
   emotionDetector = new EmotionDetector();
   audioProcessor = new AudioProcessor();
+  
+  // Initialize feature components
+  exporter = new Exporter();
+  notesUploader = new NotesUploader('#notes-container');
+  nudgeEngine = new NudgeEngine();
+  textHighlighter = new TextHighlighter();
+  
+  // Ensure the notes uploader UI is visible
+  if (notesContainer) {
+    notesUploader.createUploaderUI();
+  }
   
   // Set canvas dimensions
   updateCanvasDimensions();
   
   // Update canvas dimensions on window resize
   window.addEventListener('resize', updateCanvasDimensions);
+  
+  // Ensure body has the inactive class by default
+  document.body.classList.remove('session-active');
   
   updateStatus('Ready to start');
 }
@@ -81,9 +104,15 @@ async function startSession() {
   // Toggle UI
   startButton.disabled = true;
   stopButton.disabled = false;
+  exportButton.disabled = true;
   updateStatus('Starting session...');
   
   try {
+    // Reset feature components
+    exporter.startSession();
+    textHighlighter.reset();
+    nudgeEngine.reset();
+    
     // Hide camera overlay with animation
     cameraStatus.textContent = 'Activating camera...';
     
@@ -104,6 +133,10 @@ async function startSession() {
       
       // Add active class for animation
       cameraContainer.classList.add('active');
+      
+      // Add session-active class to body
+      document.body.classList.add('session-active');
+      console.log('Session active class added to body:', document.body.classList.contains('session-active'));
       
       // Hide overlay after animation completes
       setTimeout(() => {
@@ -172,9 +205,25 @@ function stopSession() {
   // Remove active class
   cameraContainer.classList.remove('active');
   
+  // Remove session-active class from body
+  document.body.classList.remove('session-active');
+  
   isRunning = false;
   resetUI();
   updateStatus('Session ended');
+  
+  // Enable export button
+  exportButton.disabled = false;
+}
+
+/**
+ * Export the session data
+ */
+function exportSession() {
+  if (!exporter) return;
+  
+  exporter.exportSession();
+  updateStatus('Session exported');
 }
 
 /**
@@ -222,6 +271,16 @@ function updateMood(mood) {
   
   // Update description
   moodDescription.textContent = moodDescriptions[mood.toLowerCase()] || moodDescriptions.neutral;
+  
+  // Log emotion in exporter
+  if (exporter && isRunning) {
+    exporter.logEmotion(mood);
+  }
+  
+  // Track emotion for nudges
+  if (nudgeEngine && isRunning) {
+    nudgeEngine.trackEmotion(mood);
+  }
 }
 
 /**
@@ -249,18 +308,32 @@ function updateTranscript(text) {
     recentTranscripts.shift();
   }
   
-  // Update display
-  transcriptElement.innerHTML = recentTranscripts.map(t => `<p>${t}</p>`).join('');
+  // Create HTML with highlights
+  let displayText = recentTranscripts.map(t => `<p>${t}</p>`).join('');
   
-  // Highlight the newest transcript
-  const paragraphs = transcriptElement.querySelectorAll('p');
-  if (paragraphs.length > 0) {
-    const newest = paragraphs[paragraphs.length - 1];
-    newest.style.animation = 'fadeIn 0.5s ease';
+  // Apply text highlighting
+  if (textHighlighter) {
+    const highlightedHtml = textHighlighter.highlightNewText(displayText);
+    displayText = highlightedHtml || displayText;
+  }
+  
+  // Update display
+  transcriptElement.innerHTML = displayText;
+  
+  // Process transcript paragraphs for highlighting
+  if (textHighlighter) {
+    textHighlighter.processTranscriptParagraphs(transcriptElement);
   }
   
   // Scroll to bottom
   transcriptElement.scrollTop = transcriptElement.scrollHeight;
+  
+  // Update exporter
+  if (exporter) {
+    // Combine all transcripts into a single string for export
+    const fullTranscript = recentTranscripts.join('\n\n');
+    exporter.updateTranscript(fullTranscript);
+  }
 }
 
 /**
@@ -275,6 +348,11 @@ function updateSummary(text) {
     summaryElement.textContent = text;
     summaryElement.style.opacity = '1';
   }, 300);
+  
+  // Update exporter
+  if (exporter) {
+    exporter.updateSummary(text);
+  }
 }
 
 /**

@@ -163,7 +163,7 @@ class AudioProcessor {
     if (data.text) {
       this.transcriptionBuffer.push({ text: data.text, timestamp: new Date().toISOString() });
       if (this.onTranscriptUpdate) this.onTranscriptUpdate(data.text);
-      this.updateStatus('Transcribed audio with ElevenLabs');
+      this.updateStatus('Audio transcribed successfully');
     } else {
       throw new Error('No transcription returned from ElevenLabs API');
     }

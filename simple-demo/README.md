@@ -8,6 +8,10 @@ A sophisticated AI-powered application for real-time emotion analysis, speech tr
 - **Live Speech Transcription**: Accurate speech-to-text conversion with interim results
 - **Intelligent Content Summarization**: AI-generated summaries of spoken content
 - **Sleek, Modern Interface**: Minimalist black and white design with translucent elements
+- **Export Session**: Download session data (emotions, transcript, summary) as a formatted Markdown file
+- **Speaker Notes Uploader**: Upload and display PDF, DOCX, and TXT files as reference materials
+- **Emotion-Aware Nudges**: Smart suggestions based on detected emotional patterns
+- **Text Highlighting**: Visual emphasis on recently spoken words in the transcript
 - **Responsive Layout**: Adapts seamlessly to different screen sizes and orientations
 - **High-Resolution Video Processing**: Optimized for HD webcam streams
 - **Smooth Animations**: Elegant transitions and feedback animations
@@ -31,6 +35,12 @@ A sophisticated AI-powered application for real-time emotion analysis, speech tr
    - Emotion detection engine using neural networks
    - Audio processing pipeline for speech recognition
    - Natural language processing for summarization
+
+4. **Feature Modules**
+   - Export functionality for session data
+   - Document parsing for speaker notes
+   - Emotion-based guidance system
+   - Dynamic text highlighting
 
 ### Workflow
 
@@ -100,6 +110,10 @@ simple-demo/
 │   ├── app.js               # Main application controller
 │   ├── emotion-detector.js  # Facial emotion analysis module
 │   ├── audio-processor.js   # Speech processing module
+│   ├── exporter.js          # Session data export module
+│   ├── notes-uploader.js    # Speaker notes document parser
+│   ├── nudge-engine.js      # Emotion-aware guidance system
+│   ├── text-highlighter.js  # Transcript highlighting module
 │   ├── config.js            # Application configuration
 │   ├── face-api.min.js      # Face detection library
 │   └── lib/
@@ -118,6 +132,7 @@ simple-demo/
 - **Frontend**: HTML5, CSS3, JavaScript (ES6+)
 - **Machine Learning**: TensorFlow.js, face-api.js
 - **Audio Processing**: Web Audio API, MediaRecorder API
+- **Document Parsing**: PDF.js for PDF, Mammoth.js for DOCX
 - **Speech Recognition**: Browser Speech API (with OpenAI Whisper API option)
 - **Natural Language Processing**: Text analysis for summarization (with OpenAI GPT API option)
 
@@ -160,7 +175,10 @@ http-server
    - The right panel shows your detected emotions
    - Live transcription appears as you speak
    - Summaries are generated automatically
-5. **End Session**: Click "End Session" when finished
+5. **Upload Speaker Notes**: Use the uploader in the left panel to add PDF, DOCX, or TXT files
+6. **See Contextual Nudges**: Receive helpful suggestions based on your emotional patterns
+7. **Export Your Session**: Click the "Export Session" button to download a Markdown file with all data
+8. **End Session**: Click "End Session" when finished
 
 ## Advanced Configuration
 
@@ -181,6 +199,11 @@ For enhanced capabilities:
    - Add your API key to the `config.js` file
    - Enable advanced transcription with Whisper API
    - Enable more sophisticated summarization with GPT API
+
+2. **ElevenLabs API Integration**:
+   - Obtain an API key from ElevenLabs
+   - Add your API key to the `config.js` file
+   - Enable high-quality speech-to-text conversion
 
 ## Performance Considerations
 
