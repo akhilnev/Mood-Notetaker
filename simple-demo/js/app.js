@@ -1,8 +1,15 @@
 /**
  * Main application script for Mood Notetaker
  */
+import { startInterviewAgent, stopInterviewAgent } from './interview-agent.js';
 
-// Main app state
+// Application state
+const appState = {
+  mode: 'practice', // 'practice' or 'interview'
+  interviewConfig: null
+};
+
+// Main session state
 let isRunning = false;
 let emotionDetector = null;
 let audioProcessor = null;
@@ -32,6 +39,15 @@ const cameraOverlay = document.querySelector('.camera-overlay-text');
 const cameraStatus = document.querySelector('.camera-status');
 const notesContainer = document.getElementById('notes-container');
 
+// Mode toggle elements
+const practiceModeBtn = document.getElementById('practiceModeBtn');
+const interviewModeBtn = document.getElementById('interviewModeBtn');
+
+// Modal elements
+const interviewModal = document.getElementById('interviewModal');
+const closeModalBtn = document.querySelector('.close-modal');
+const startInterviewBtn = document.getElementById('startInterviewBtn');
+
 // Mood descriptions
 const moodDescriptions = {
   'happy': 'Positive emotions detected in facial expressions.',
@@ -52,10 +68,25 @@ document.addEventListener('DOMContentLoaded', init);
 async function init() {
   console.log('Initializing Mood Notetaker');
   
-  // Set up event listeners
+  // Set up core event listeners
   startButton.addEventListener('click', startSession);
   stopButton.addEventListener('click', stopSession);
   exportButton.addEventListener('click', exportSession);
+  
+  // Set up mode toggle event listeners
+  practiceModeBtn.addEventListener('click', () => setAppMode('practice'));
+  interviewModeBtn.addEventListener('click', () => setAppMode('interview'));
+  
+  // Set up modal event listeners
+  closeModalBtn.addEventListener('click', hideModal);
+  startInterviewBtn.addEventListener('click', startInterview);
+  
+  // Close modal if clicked outside
+  window.addEventListener('click', (event) => {
+    if (event.target === interviewModal) {
+      hideModal();
+    }
+  });
   
   // Initialize core components
   emotionDetector = new EmotionDetector();
@@ -66,6 +97,11 @@ async function init() {
   notesUploader = new NotesUploader('#notes-container');
   nudgeEngine = new NudgeEngine();
   textHighlighter = new TextHighlighter();
+  
+  // Initialize interview feature components (lazy load)
+  if (typeof initInterviewComponents === 'function') {
+    initInterviewComponents();
+  }
   
   // Ensure the notes uploader UI is visible
   if (notesContainer) {
@@ -81,7 +117,100 @@ async function init() {
   // Ensure body has the inactive class by default
   document.body.classList.remove('session-active');
   
+  // Initialize in practice mode
+  setAppMode('practice');
+  
   updateStatus('Ready to start');
+}
+
+/**
+ * Set the application mode
+ */
+function setAppMode(mode) {
+  // Update app state
+  appState.mode = mode;
+  
+  // Update UI
+  if (mode === 'practice') {
+    practiceModeBtn.classList.add('active');
+    interviewModeBtn.classList.remove('active');
+    hideModal();
+    initPractice();
+  } else if (mode === 'interview') {
+    practiceModeBtn.classList.remove('active');
+    interviewModeBtn.classList.add('active');
+    showModal();
+    initInterview();
+  }
+  
+  console.log(`App mode set to: ${mode}`);
+}
+
+/**
+ * Show the interview modal
+ */
+function showModal() {
+  interviewModal.classList.add('show');
+}
+
+/**
+ * Hide the interview modal
+ */
+function hideModal() {
+  interviewModal.classList.remove('show');
+}
+
+/**
+ * Initialize practice mode
+ */
+function initPractice() {
+  // Show standard elements, hide interview-specific elements
+  console.log('Initializing practice mode');
+  // No specific initialization needed yet, just using the default UI
+}
+
+/**
+ * Initialize interview mode
+ */
+function initInterview() {
+  // Show interview-specific elements, prepare for interview session
+  console.log('Initializing interview mode');
+  // Actual initialization happens when the interview starts
+}
+
+/**
+ * Start an interview session based on form input
+ */
+function startInterview() {
+  console.log('Starting interview process');
+  
+  if (typeof gatherInterviewConfig !== 'function') {
+    console.error('Interview setup module not loaded');
+    return;
+  }
+  
+  try {
+    // Gather configuration from the form
+    appState.interviewConfig = gatherInterviewConfig();
+    
+    console.log('Interview configuration:', appState.interviewConfig);
+    
+    // Hide the modal
+    hideModal();
+    
+    // Add a clear visual indication that we're in interview mode
+    document.body.classList.add('interview-mode');
+    
+    // Start the session
+    startSession();
+    
+    // Update UI to show interview is starting
+    updateTranscript('[System]: Interview session starting. Please wait while we connect to the interviewer...');
+    updateStatus('Connecting to interview agent...');
+  } catch (error) {
+    console.error('Error starting interview:', error);
+    updateStatus('Error starting interview: ' + error.message);
+  }
 }
 
 /**
@@ -150,32 +279,48 @@ async function startSession() {
       await emotionDetector.initialize(videoElement, canvasElement);
       emotionDetector.start(updateMood);
       
-      // Start audio processor
-      console.log('Starting audio processor');
-      try {
-        await audioProcessor.start(
+      // Handle mode-specific initialization
+      if (appState.mode === 'practice') {
+        // Standard practice mode - just start audio processor
+        console.log('Starting audio processor for practice mode');
+        try {
+          await audioProcessor.start(
+            updateStatus,
+            updateTranscript,
+            updateSummary
+          );
+        } catch (error) {
+          console.error('Failed to start audio processor:', error);
+        }
+      } else if (appState.mode === 'interview') {
+        // Interview mode - start interview agent
+        console.log('Starting interview agent...');
+        // Start the interview agent
+        await startInterviewAgent(
+          appState.interviewConfig,
           updateStatus,
           updateTranscript,
           updateSummary
         );
-      } catch (error) {
-        console.error('Failed to start audio processor:', error);
       }
       
       isRunning = true;
       updateStatus('<span class="status-tag status-active">Active</span> Session in progress');
     };
   } catch (error) {
-    console.error('Failed to start session:', error);
-    updateStatus('<span class="status-tag status-inactive">Error</span> ' + (error.message || 'Failed to access camera'));
+    console.error('Error starting session:', error);
+    updateStatus('Error: ' + error.message);
     resetUI();
+    startButton.disabled = false;
+    stopButton.disabled = true;
+    return;
   }
 }
 
 /**
  * Stop the session
  */
-function stopSession() {
+async function stopSession() {
   if (!isRunning) return;
   
   // Stop components
@@ -185,6 +330,14 @@ function stopSession() {
   
   if (audioProcessor) {
     audioProcessor.stop();
+  }
+  
+  // Stop interview agent if in interview mode
+  if (appState.mode === 'interview') {
+    console.log('Stopping interview agent...');
+    await stopInterviewAgent();
+    // Remove interview mode indicator
+    document.body.classList.remove('interview-mode');
   }
   
   // Stop camera
@@ -214,6 +367,11 @@ function stopSession() {
   
   // Enable export button
   exportButton.disabled = false;
+  
+  // If in interview mode and we have a report generator, generate final report
+  if (appState.mode === 'interview' && typeof generateInterviewReport === 'function') {
+    generateInterviewReport();
+  }
 }
 
 /**
@@ -359,6 +517,8 @@ function updateSummary(text) {
  * Update status message
  */
 function updateStatus(status) {
+  if (!statusElement) return;
+  
   statusElement.innerHTML = status;
   
   // Add loading animation for certain statuses
@@ -383,4 +543,9 @@ document.addEventListener('DOMContentLoaded', () => {
   setTimeout(() => {
     document.body.style.opacity = '1';
   }, 100);
-}); 
+});
+
+// Expose required functions for testing
+window.appState = appState;
+window.initPractice = initPractice;
+window.initInterview = initInterview; 

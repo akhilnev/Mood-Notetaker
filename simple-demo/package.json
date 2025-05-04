@@ -1,0 +1,23 @@
+{
+  "name": "simple-demo",
+  "version": "1.0.0",
+  "description": "A sophisticated AI-powered application for real-time emotion analysis, speech transcription, and content summarization. This browser-based tool processes facial expressions and speech simultaneously to provide immediate feedback on emotional states while creating intelligent transcripts and summaries.",
+  "main": "index.js",
+  "directories": {
+    "test": "test"
+  },
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "@11labs/client": "^0.1.4"
+  },
+  "devDependencies": {
+    "vite": "^6.3.4"
+  }
+}

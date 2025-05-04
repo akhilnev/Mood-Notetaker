@@ -36,7 +36,7 @@ export async function gatherInterviewConfig() {
 
 ---
 
-## 3  Create or pick an ElevenLabs voice
+## 3  Create or pick an ElevenLabs voice ( I would rather just use an existing dont waste time on this )
 
 ```js
 async function ensureVoice(role, company) {
@@ -59,7 +59,7 @@ async function ensureVoice(role, company) {
 
 ---
 
-## 4  Spin-up the Conversational-AI agent
+## 4  Spin-up the Conversational-AI agent ( Very important review and go thru once! )
 
 ```js
 async function createInterviewAgent(cfg, voice_id) {
@@ -130,7 +130,7 @@ Hook the animation loop to the average RMS of the latest audio chunk for a subtl
 
 ---
 
-## 7  Parallel emotion & transcript capture
+## 7  Parallel emotion & transcript capture ( Also extremely important for our overall project )
 
 Your existing video + STT pipeline keeps running; just tag each transcript line with a `source: "agent" | "user"` flag so you can show both sides later.
 
@@ -138,7 +138,7 @@ If you prefer the agent’s own text, ElevenLabs WS also emits `{"type":"transcr
 
 ---
 
-## 8  Post-interview report via OpenAI
+## 8  Post-interview report via OpenAI( Also extremely important need tomake sure the report looks pretty and is helpful to the user  )
 
 ```js
 async function reviewWithOpenAI(conversationJson) {
