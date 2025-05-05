@@ -1,0 +1,9 @@
+
+-> Export Report ( include full summary instead of partial session summary and improve report were sending)
+-> Generate interview Report Worlflow! 
+
+----
+-> Make interview much more solid! 
+-> Presentation video and deployment! 
+
+

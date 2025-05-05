@@ -293,15 +293,53 @@ async function startSession() {
           console.error('Failed to start audio processor:', error);
         }
       } else if (appState.mode === 'interview') {
-        // Interview mode - start interview agent
-        console.log('Starting interview agent...');
+        // Interview mode - start interview agent AND audio processor for live transcription
+        console.log('Starting interview agent and audio processor...');
+        
         // Start the interview agent
         await startInterviewAgent(
           appState.interviewConfig,
           updateStatus,
-          updateTranscript,
+          (text) => {
+            // Only forward interviewer messages to transcript
+            if (text.startsWith('[Interviewer]') || text.startsWith('[System]')) {
+              updateTranscript(text);
+            }
+          },
           updateSummary
         );
+        
+        // Also start audio processor for live transcription of user's speech
+        try {
+          await audioProcessor.start(
+            // Don't update status from the audio processor as it would conflict
+            (status) => console.log('Audio processor status:', status),
+            // Prefix user transcripts to distinguish from interviewer
+            (text) => {
+              // Format and display the candidate message
+              const candidateMessage = `[Candidate]: ${text}`;
+              updateTranscript(candidateMessage);
+              
+              // Save to the full transcript in the interview agent state
+              if (interviewAgentState && interviewAgentState.fullTranscript) {
+                interviewAgentState.fullTranscript.push({
+                  role: 'candidate',
+                  text: text,
+                  timestamp: new Date().toISOString()
+                });
+              }
+            },
+            // Use a separate function for user summaries
+            (summary) => {
+              // Store candidate summaries but don't override the main summary
+              if (exporter) {
+                exporter.updateCandidateSummary(summary);
+              }
+            }
+          );
+        } catch (error) {
+          console.error('Failed to start audio processor:', error);
+        }
       }
       
       isRunning = true;

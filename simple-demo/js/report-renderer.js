@@ -18,14 +18,35 @@ async function generateReport(interviewConfig) {
     // Get the interview data
     const interviewData = collectInterviewData(interviewConfig);
     
-    // Generate the report
-    const reportMarkdown = await generateReportWithOpenAI(interviewData);
+    // Get the formatted transcript text
+    const transcriptText = formatTranscriptForEvaluation(interviewData.fullTranscript);
     
-    // Render the report
-    renderReport(reportMarkdown);
+    // Use evaluation from report-generator.js if available
+    if (typeof evaluateWithGPT === 'function') {
+      console.log('Using report-generator.js evaluation with GPT');
+      
+      // Get interview details from config
+      const role = interviewConfig.role || 'unspecified role';
+      const company = interviewConfig.company || 'unspecified company';
+      const focus = interviewConfig.focus || 'general interview topics';
+      
+      // Generate the evaluation with GPT
+      const reportMarkdown = await evaluateWithGPT(transcriptText, role, company, focus);
+      
+      // Render the report
+      renderReport(reportMarkdown);
+      return reportMarkdown;
+    } else {
+      // Fall back to the original report generation
+      console.log('Falling back to original report generation');
+      const reportMarkdown = await generateReportWithOpenAI(interviewData);
+      renderReport(reportMarkdown);
+      return reportMarkdown;
+    }
   } catch (error) {
     console.error('Error generating report:', error);
     reportContainer.innerHTML = `<div class="report-error">Error generating report: ${error.message}</div>`;
+    return null;
   }
 }
 
@@ -53,12 +74,43 @@ function getOrCreateReportContainer() {
 }
 
 /**
+ * Format the full transcript for evaluation
+ * @param {Array} fullTranscript - Array of transcript entries
+ * @returns {string} Formatted transcript text
+ */
+function formatTranscriptForEvaluation(fullTranscript) {
+  if (!fullTranscript || !Array.isArray(fullTranscript) || fullTranscript.length === 0) {
+    return "No transcript available";
+  }
+  
+  // Sort by timestamp if available
+  const sortedTranscript = [...fullTranscript].sort((a, b) => {
+    if (a.timestamp && b.timestamp) {
+      return new Date(a.timestamp) - new Date(b.timestamp);
+    }
+    return 0;
+  });
+  
+  // Format into text
+  return sortedTranscript.map(entry => {
+    const role = entry.role === 'interviewer' ? '[Interviewer]' : '[Candidate]';
+    return `${role}: ${entry.text}`;
+  }).join('\n\n');
+}
+
+/**
  * Collect data about the interview
  * @param {Object} interviewConfig The interview configuration
  * @returns {Object} Interview data for the report
  */
 function collectInterviewData(interviewConfig) {
-  // Get transcript data
+  // Get transcript data from interviewAgentState if available
+  let fullTranscript = [];
+  if (window.interviewAgentState && window.interviewAgentState.fullTranscript) {
+    fullTranscript = window.interviewAgentState.fullTranscript;
+  }
+  
+  // Get transcript from DOM as fallback
   const transcriptElement = document.getElementById('transcript');
   const transcript = transcriptElement ? transcriptElement.innerText : '';
   
@@ -76,6 +128,7 @@ function collectInterviewData(interviewConfig) {
   return {
     config: interviewConfig,
     transcript: transcript,
+    fullTranscript: fullTranscript,
     emotions: emotions,
     summary: summary,
     timestamp: new Date().toISOString()

@@ -8,6 +8,7 @@ class Exporter {
     this.emotions = [];
     this.transcript = '';
     this.summary = '';
+    this.candidateSummary = '';
     this.sessionTimestamp = new Date().toISOString();
   }
 
@@ -31,6 +32,7 @@ class Exporter {
     this.emotions = [];
     this.transcript = '';
     this.summary = '';
+    this.candidateSummary = '';
     this.sessionStartTime = Date.now();
     this.sessionTimestamp = new Date().toLocaleString();
   }
@@ -52,6 +54,14 @@ class Exporter {
   }
 
   /**
+   * Update the candidate summary for interview mode
+   * @param {string} text The latest candidate summary
+   */
+  updateCandidateSummary(text) {
+    this.candidateSummary = text;
+  }
+
+  /**
    * Generate a Markdown representation of the session
    * @returns {string} The Markdown content
    */
@@ -63,6 +73,11 @@ class Exporter {
     markdown += `*Session recorded: ${this.sessionTimestamp}*\n\n`;
     
     markdown += `## Summary\n\n${this.summary || '*No summary generated*'}\n\n`;
+    
+    // Add candidate summary section if available (for interview mode)
+    if (this.candidateSummary) {
+      markdown += `## Candidate Summary\n\n${this.candidateSummary}\n\n`;
+    }
     
     markdown += `## Emotion Analysis\n\n`;
     markdown += `**Dominant Emotion:** ${dominantEmotion}\n\n`;

@@ -15,7 +15,8 @@ const interviewAgentState = {
   voiceId: null,
   conversation: null,
   isConnected: false,
-  interviewConfig: null
+  interviewConfig: null,
+  fullTranscript: []
 };
 
 /**
@@ -136,6 +137,9 @@ async function connectToAgent(agentId) {
     // Request microphone access first (as shown in the template)
     await navigator.mediaDevices.getUserMedia({ audio: true });
     
+    // Initialize transcript storage
+    interviewAgentState.fullTranscript = [];
+    
     // Start the conversation with the agent ID - using the Conversation directly 
     const conversation = await Conversation.startSession({
       agentId: agentId,
@@ -156,7 +160,16 @@ async function connectToAgent(agentId) {
       onMessage: (message) => {
         console.log('Received message:', message);
         if (message && message.text) {
-          updateTranscript(`[Interviewer]: ${message.text}`);
+          // Add to transcript and save to full transcript
+          const interviewerMessage = `[Interviewer]: ${message.text}`;
+          updateTranscript(interviewerMessage);
+          
+          // Save to full transcript array
+          interviewAgentState.fullTranscript.push({
+            role: 'interviewer',
+            text: message.text,
+            timestamp: new Date().toISOString()
+          });
         }
       },
       onError: (error) => {
@@ -449,11 +462,30 @@ async function stopInterviewAgent() {
 async function generateInterviewReport() {
   console.log('Generating interview report');
   
+  // Make the state accessible globally for report generation
+  window.interviewAgentState = interviewAgentState;
+  
   // Check if generateReport function is available
   if (typeof generateReport === 'function') {
-    generateReport(interviewAgentState.interviewConfig);
+    try {
+      // Generate report with interview config
+      const report = await generateReport(interviewAgentState.interviewConfig);
+      
+      console.log('Interview report generated successfully');
+      
+      // Update UI to show report is ready
+      if (typeof updateStatus === 'function') {
+        updateStatus('Interview evaluation report generated');
+      }
+      
+      return report;
+    } catch (error) {
+      console.error('Error generating interview report:', error);
+      return null;
+    }
   } else {
     console.log('Report generator not available');
+    return null;
   }
 }
 
