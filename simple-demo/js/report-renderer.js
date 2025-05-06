@@ -323,24 +323,50 @@ function convertMarkdownToHtml(markdown) {
   // Lists
   html = html.replace(/^\* (.*$)/gm, '<li>$1</li>');
   html = html.replace(/^- (.*$)/gm, '<li>$1</li>');
+  html = html.replace(/^\d+\. (.*$)/gm, '<li>$1</li>');
   
   // Wrap lists
   html = html.replace(/<\/li>\n<li>/g, '</li><li>');
-  html = html.replace(/<li>(.*?)<\/li>/g, function(match) {
-    if (match.indexOf('<li>') === 0 && match.lastIndexOf('</li>') === match.length - 5) {
-      return '<ul>' + match + '</ul>';
+  
+  // Unordered lists
+  let parts = html.split(/<li>/);
+  for (let i = 1; i < parts.length; i++) {
+    if (!parts[i].includes('</li>')) continue;
+    
+    // Check if we're at the start of an unordered list
+    if (i === 1 || !parts[i-1].includes('</li>')) {
+      parts[i] = '<ul><li>' + parts[i];
+    } else {
+      parts[i] = '<li>' + parts[i];
     }
-    return match;
-  });
+    
+    // Check if we're at the end of an unordered list
+    if (i === parts.length - 1 || !parts[i+1].includes('</li>')) {
+      parts[i] = parts[i].replace('</li>', '</li></ul>');
+    }
+  }
+  html = parts.join('');
   
   // Bold
   html = html.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+  html = html.replace(/__(.*?)__/g, '<strong>$1</strong>');
   
   // Italic
   html = html.replace(/\*(.*?)\*/g, '<em>$1</em>');
+  html = html.replace(/_(.*?)_/g, '<em>$1</em>');
   
-  // Line breaks
-  html = html.replace(/\n/g, '<br>');
+  // Horizontal rules
+  html = html.replace(/^---$/gm, '<hr>');
+  
+  // Paragraphs - add paragraph tags to lines that aren't already wrapped
+  const lines = html.split('\n');
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i].trim();
+    if (line && !line.startsWith('<') && !line.endsWith('>')) {
+      lines[i] = '<p>' + line + '</p>';
+    }
+  }
+  html = lines.join('\n');
   
   return html;
 }
@@ -357,87 +383,142 @@ function addReportStyles() {
       width: 80%;
       max-width: 800px;
       max-height: 90vh;
-      background: var(--card-bg);
-      border: 1px solid var(--card-border);
-      border-radius: var(--border-radius);
-      box-shadow: var(--shadow);
+      background: var(--card-bg, #1e1e1e);
+      border: 1px solid var(--card-border, #333);
+      border-radius: var(--border-radius, 8px);
+      box-shadow: var(--shadow, 0 4px 20px rgba(0, 0, 0, 0.6));
       z-index: 1000;
       overflow-y: auto;
       backdrop-filter: blur(10px);
-      padding: 20px;
+      padding: 20px 30px;
       display: none;
+      color: var(--text-primary, #f1f1f1);
     }
     
     .report-close {
       position: absolute;
-      top: 10px;
-      right: 10px;
-      width: 30px;
-      height: 30px;
+      top: 15px;
+      right: 15px;
+      width: 32px;
+      height: 32px;
       border-radius: 50%;
-      background: rgba(0, 0, 0, 0.2);
+      background: rgba(255, 255, 255, 0.1);
       border: none;
-      color: var(--text-primary);
-      font-size: 20px;
+      color: var(--text-primary, #f1f1f1);
+      font-size: 22px;
       line-height: 1;
       cursor: pointer;
-      transition: background 0.2s ease;
+      transition: all 0.2s ease;
+      display: flex;
+      align-items: center;
+      justify-content: center;
     }
     
     .report-close:hover {
-      background: rgba(0, 0, 0, 0.4);
+      background: rgba(255, 255, 255, 0.2);
+      transform: scale(1.1);
     }
     
     .report-content {
-      color: var(--text-primary);
+      color: var(--text-primary, #f1f1f1);
+      line-height: 1.6;
     }
     
     .report-content h1 {
-      font-size: 24px;
+      font-size: 28px;
       margin-bottom: 20px;
-      border-bottom: 1px solid var(--card-border);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.2);
       padding-bottom: 10px;
+      color: var(--text-primary, #f1f1f1);
+      font-weight: 600;
+      letter-spacing: 0.5px;
     }
     
     .report-content h2 {
-      font-size: 20px;
-      margin: 15px 0;
+      font-size: 22px;
+      margin: 25px 0 15px;
+      color: var(--text-primary, #f1f1f1);
       text-transform: none;
       letter-spacing: normal;
+      position: relative;
+      font-weight: 600;
+      padding-bottom: 8px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
     }
     
     .report-content h3 {
-      font-size: 18px;
-      margin: 15px 0 10px;
-      color: var(--text-secondary);
+      font-size: 20px;
+      margin: 20px 0 12px;
+      color: var(--text-secondary, #aaa);
+      font-weight: 500;
     }
     
     .report-content h4 {
-      font-size: 16px;
-      margin: 10px 0;
-      color: var(--text-secondary);
+      font-size: 18px;
+      margin: 15px 0 10px;
+      color: var(--text-secondary, #aaa);
+      font-weight: 500;
     }
     
     .report-content ul {
-      margin: 10px 0;
-      padding-left: 20px;
+      margin: 15px 0;
+      padding-left: 25px;
     }
     
     .report-content li {
-      margin: 5px 0;
+      margin: 8px 0;
+      position: relative;
+    }
+    
+    .report-content li:before {
+      content: '•';
+      color: var(--text-secondary, #aaa);
+      font-weight: bold;
+      position: absolute;
+      left: -18px;
+    }
+    
+    .report-content strong {
+      color: var(--text-primary, #f1f1f1);
+      font-weight: 600;
+    }
+    
+    .report-content em {
+      font-style: italic;
+      color: var(--text-secondary, #aaa);
+    }
+    
+    .report-content p {
+      margin: 12px 0;
     }
     
     .report-loading {
       text-align: center;
-      padding: 20px;
+      padding: 30px;
       font-style: italic;
-      color: var(--text-secondary);
+      color: var(--text-secondary, #aaa);
     }
     
     .report-error {
       text-align: center;
-      padding: 20px;
-      color: #e74c3c;
+      padding: 30px;
+      color: rgba(231, 76, 60, 0.8);
+    }
+    
+    .report-content hr {
+      border: none;
+      border-top: 1px solid var(--card-border, #333);
+      margin: 20px 0;
+    }
+    
+    .report-content a {
+      color: var(--text-secondary, #aaa);
+      text-decoration: underline;
+      transition: color 0.2s ease;
+    }
+    
+    .report-content a:hover {
+      color: var(--text-primary, #f1f1f1);
     }
   `;
   document.head.appendChild(style);
