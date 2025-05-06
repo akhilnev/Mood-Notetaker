@@ -2,6 +2,14 @@
 
 A sophisticated AI-powered application for real-time emotion analysis, speech transcription, and content summarization. This browser-based tool processes facial expressions and speech simultaneously to provide immediate feedback on emotional states while creating intelligent transcripts and summaries.
 
+## Demo
+
+Watch the application in action:
+
+[![Mood Notetaker Demo](https://img.shields.io/badge/Watch%20Demo-Video-red)](https://drive.google.com/file/d/1R30jTvXmnBlRTOPyk4ANlun0Gc0gbB-X/view)
+
+> **Live Demo Video**: See how Mood Notetaker captures emotions and processes speech in real-time.
+
 ## Features
 
 - **Real-time Emotion Detection**: Advanced facial expression analysis using TensorFlow.js and face-api.js
