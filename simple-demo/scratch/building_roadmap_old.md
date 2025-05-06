@@ -224,8 +224,6 @@ If all green, deploy behind HTTPS (WS & media constraints).
 13. WebSocket API reference ([ElevenLabs][10])
 14. Three.js official sphere examples ([Three.js][8])
 
-With this roadmap, any teammate can drop straight into the codebase, follow the file checklist, and wire the new ElevenLabs interviewer into your polished mood-tracking demo. Happy shipping!
-
 [1]: https://elevenlabs.io/docs/api-reference/voices/add?utm_source=chatgpt.com "Create voice clone | ElevenLabs Documentation"
 [2]: https://elevenlabs.io/docs/api-reference/voices/add/~explorer?utm_source=chatgpt.com "Create voice clone (API Explorer) | ElevenLabs Documentation"
 [3]: https://elevenlabs.io/docs/conversational-ai/api-reference/agents/create-agent?utm_source=chatgpt.com "Create agent | ElevenLabs Documentation"
