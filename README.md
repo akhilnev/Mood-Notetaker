@@ -1,6 +1,6 @@
-# Mood Notetaker
+# Mood Notetaker 
 
-A Chrome extension that tracks facial expressions and generates real-time meeting notes for video calls.
+A Chrome extension that tracks facial expressions and generates real-time meeting notes for video calls. ( Future Vision on complete implementation )
 
 ## Features
 
