@@ -2,6 +2,7 @@
  * Emotion Detector
  * Handles facial expression detection using face-api.js
  */
+
 class EmotionDetector {
   constructor() {
     this.isInitialized = false;
@@ -42,16 +43,16 @@ class EmotionDetector {
         return false;
       }
       
-      // Load models
+      // Load models - use the public path
       console.log('Emotion Detector: Loading models');
-      const modelsPath = config.modelsPath || 'models';
+      const modelsPath = '/models'; // Public directory is served at root
       
       try {
-        await Promise.all([
-          faceapi.nets.tinyFaceDetector.loadFromUri(modelsPath),
-          faceapi.nets.faceExpressionNet.loadFromUri(modelsPath)
-        ]);
-        console.log('Emotion Detector: Models loaded successfully');
+        await faceapi.nets.tinyFaceDetector.loadFromUri(modelsPath);
+        console.log('TinyFaceDetector loaded successfully');
+        
+        await faceapi.nets.faceExpressionNet.loadFromUri(modelsPath);
+        console.log('FaceExpressionNet loaded successfully');
       } catch (e) {
         console.error('Emotion Detector: Failed to load models', e);
         this.simulationMode = true;

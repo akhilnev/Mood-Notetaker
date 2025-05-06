@@ -315,20 +315,7 @@ async function startSession() {
             // Don't update status from the audio processor as it would conflict
             (status) => console.log('Audio processor status:', status),
             // Prefix user transcripts to distinguish from interviewer
-            (text) => {
-              // Format and display the candidate message
-              const candidateMessage = `[Candidate]: ${text}`;
-              updateTranscript(candidateMessage);
-              
-              // Save to the full transcript in the interview agent state
-              if (interviewAgentState && interviewAgentState.fullTranscript) {
-                interviewAgentState.fullTranscript.push({
-                  role: 'candidate',
-                  text: text,
-                  timestamp: new Date().toISOString()
-                });
-              }
-            },
+            (text) => updateTranscript(`[Candidate]: ${text}`),
             // Use a separate function for user summaries
             (summary) => {
               // Store candidate summaries but don't override the main summary
