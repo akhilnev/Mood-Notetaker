@@ -18,6 +18,7 @@ class AudioProcessor {
     this.processingChunks = false;
     this.summarizationTimer = null;
     this.recordingTimer = null;
+    this.fullTranscript = []; // Array to store the complete transcript history
   }
   
   /**
@@ -161,7 +162,19 @@ class AudioProcessor {
     
     const data = await response.json();
     if (data.text) {
+      // Add to buffer for UI display
       this.transcriptionBuffer.push({ text: data.text, timestamp: new Date().toISOString() });
+      
+      // Add to full transcript history with current emotion if available
+      const currentEmotion = window.currentEmotion || 
+        (document.getElementById('mood-text') ? 
+         document.getElementById('mood-text').textContent : 'Neutral');
+      this.fullTranscript.push({
+        text: data.text,
+        timestamp: new Date().toISOString(),
+        emotion: currentEmotion
+      });
+      
       if (this.onTranscriptUpdate) this.onTranscriptUpdate(data.text);
       this.updateStatus('Audio transcribed successfully');
     } else {
@@ -284,4 +297,17 @@ class AudioProcessor {
     console.log('Audio Processor: Stopped');
     this.updateStatus('Audio recording stopped');
   }
-} 
+  
+  /**
+   * Get full transcript history
+   */
+  getFullTranscript() {
+    return this.fullTranscript;
+  }
+}
+
+// Make sure the AudioProcessor class is globally available
+window.AudioProcessor = AudioProcessor;
+
+// Make the active instance accessible globally as well
+window.audioProcessor = null; // Will be set when initialized 

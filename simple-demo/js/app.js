@@ -91,6 +91,7 @@ async function init() {
   // Initialize core components
   emotionDetector = new EmotionDetector();
   audioProcessor = new AudioProcessor();
+  window.audioProcessor = audioProcessor; // Make it globally accessible
   
   // Initialize feature components
   exporter = new Exporter();
@@ -277,7 +278,10 @@ async function startSession() {
       
       // Initialize emotion detector
       await emotionDetector.initialize(videoElement, canvasElement);
-      emotionDetector.start(updateMood);
+      emotionDetector.start((emotion) => {
+        updateMood(emotion);
+        handleEmotionUpdate(emotion);
+      });
       
       // Handle mode-specific initialization
       if (appState.mode === 'practice') {
@@ -573,4 +577,12 @@ document.addEventListener('DOMContentLoaded', () => {
 // Expose required functions for testing
 window.appState = appState;
 window.initPractice = initPractice;
-window.initInterview = initInterview; 
+window.initInterview = initInterview;
+
+// When an emotion update is received
+function handleEmotionUpdate(emotion) {
+  // Your existing emotion handling code
+  
+  // Store the current emotion globally for transcript entries
+  window.currentEmotion = emotion;
+} 
