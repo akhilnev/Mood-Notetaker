@@ -15,8 +15,12 @@ const interviewAgentState = {
   voiceId: null,
   conversation: null,
   isConnected: false,
-  interviewConfig: null
+  interviewConfig: null,
+  fullTranscript: [] // Array to store the complete transcript history
 };
+
+// Make sure interviewAgentState is globally accessible
+window.interviewAgentState = interviewAgentState;
 
 /**
  * Ensure a voice exists or create a new one for the interviewer
@@ -133,6 +137,28 @@ async function connectToAgent(agentId) {
       updateTranscript('[System]: Connecting to interview agent. Please wait...');
     }
     
+    // Initialize the transcript array if it doesn't exist
+    if (!interviewAgentState.fullTranscript) {
+      console.log('Creating new fullTranscript array');
+      interviewAgentState.fullTranscript = [];
+    }
+    
+    // Clear any previous transcript
+    if (interviewAgentState.fullTranscript.length > 0) {
+      console.log(`Clearing previous transcript with ${interviewAgentState.fullTranscript.length} entries`);
+      interviewAgentState.fullTranscript = [];
+    }
+    
+    // Log the initial state
+    console.log('interviewAgentState before connection:', 
+      JSON.stringify({
+        agentId: interviewAgentState.agentId,
+        isConnected: interviewAgentState.isConnected,
+        hasFullTranscript: Array.isArray(interviewAgentState.fullTranscript),
+        transcriptLength: Array.isArray(interviewAgentState.fullTranscript) ? interviewAgentState.fullTranscript.length : 'N/A'
+      })
+    );
+    
     // Request microphone access first (as shown in the template)
     await navigator.mediaDevices.getUserMedia({ audio: true });
     
@@ -156,7 +182,20 @@ async function connectToAgent(agentId) {
       onMessage: (message) => {
         console.log('Received message:', message);
         if (message && message.text) {
+          // Add to transcript UI
           updateTranscript(`[Interviewer]: ${message.text}`);
+          
+          // Add to full transcript history with timestamp
+          if (Array.isArray(interviewAgentState.fullTranscript)) {
+            interviewAgentState.fullTranscript.push({
+              role: 'interviewer',
+              text: message.text,
+              timestamp: new Date().toISOString()
+            });
+            console.log(`Added interviewer message to transcript, new length: ${interviewAgentState.fullTranscript.length}`);
+          } else {
+            console.error('fullTranscript is not an array, cannot add interviewer message');
+          }
         }
       },
       onError: (error) => {
@@ -192,6 +231,13 @@ async function connectToAgent(agentId) {
     // Store the conversation in state
     interviewAgentState.conversation = conversation;
     interviewAgentState.isConnected = true;
+    
+    // Add system message to full transcript
+    interviewAgentState.fullTranscript.push({
+      role: 'system',
+      text: 'Interview is starting. The interviewer will speak shortly.',
+      timestamp: new Date().toISOString()
+    });
     
     // Update transcript
     updateTranscript('[System]: Interview is starting. The interviewer will speak shortly.');
@@ -439,6 +485,12 @@ async function stopInterviewAgent() {
     updateStatus('Interview ended');
   }
   
+  // Generate the interview report after a brief delay to ensure all processing is complete
+  setTimeout(() => {
+    console.log('Generating interview report after session end');
+    generateInterviewReport();
+  }, 1000);
+  
   console.log('Interview agent stopped successfully');
   return true;
 }
@@ -448,12 +500,116 @@ async function stopInterviewAgent() {
  */
 async function generateInterviewReport() {
   console.log('Generating interview report');
+  console.log('interviewAgentState available:', !!window.interviewAgentState);
   
-  // Check if generateReport function is available
-  if (typeof generateReport === 'function') {
-    generateReport(interviewAgentState.interviewConfig);
-  } else {
-    console.log('Report generator not available');
+  if (window.interviewAgentState) {
+    console.log('interviewAgentState properties:', Object.keys(window.interviewAgentState));
+    console.log('fullTranscript available:', !!window.interviewAgentState.fullTranscript);
+    console.log('fullTranscript is array:', Array.isArray(window.interviewAgentState.fullTranscript));
+    if (Array.isArray(window.interviewAgentState.fullTranscript)) {
+      console.log('fullTranscript length:', window.interviewAgentState.fullTranscript.length);
+    }
+  }
+  
+  try {
+    // Make sure we have a full transcript
+    if (!interviewAgentState.fullTranscript || interviewAgentState.fullTranscript.length === 0) {
+      console.warn('No full transcript available for report generation');
+      
+      // Try to get transcript from the DOM as fallback
+      const transcriptElement = document.getElementById('transcript');
+      if (transcriptElement && transcriptElement.innerText) {
+        console.log('Using DOM transcript as fallback');
+      } else {
+        throw new Error('No transcript data available');
+      }
+    } else {
+      console.log(`Full transcript available with ${interviewAgentState.fullTranscript.length} entries`);
+    }
+    
+    // Check if report-renderer's generateReport function is available
+    if (typeof generateReport === 'function') {
+      console.log('Using report-renderer.js to generate report');
+      return generateReport(interviewAgentState.interviewConfig);
+    } 
+    
+    // Try direct generation if renderer is not available
+    if (typeof window.evaluateWithGPT === 'function' && interviewAgentState.fullTranscript) {
+      console.log('Using direct evaluateWithGPT to generate report');
+      
+      // Format the transcript
+      const formattedTranscript = interviewAgentState.fullTranscript.map(entry => {
+        const role = entry.role === 'interviewer' ? '[Interviewer]' : 
+                    entry.role === 'candidate' ? '[Candidate]' : '[System]';
+        return `${role}: ${entry.text}`;
+      }).join('\n\n');
+      
+      console.log('Formatted transcript length:', formattedTranscript.length);
+      
+      // Get config details
+      const config = interviewAgentState.interviewConfig || {};
+      const role = config.role || 'unspecified role';
+      const company = config.company || 'unspecified company';
+      const focus = config.focus || 'general topics';
+      
+      // Generate the evaluation
+      const reportMarkdown = await window.evaluateWithGPT(
+        formattedTranscript, 
+        role,
+        company,
+        focus
+      );
+      
+      console.log('Report generated, length:', reportMarkdown.length);
+      
+      // Display the report
+      if (typeof window.renderReport === 'function') {
+        window.renderReport(reportMarkdown);
+      } else {
+        // Create a simple display if renderReport is not available
+        const reportContainer = document.createElement('div');
+        reportContainer.className = 'report-container';
+        reportContainer.style.cssText = 'position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 80%; max-width: 800px; background: white; border: 1px solid #ccc; border-radius: 5px; padding: 20px; max-height: 80vh; overflow-y: auto; z-index: 1000;';
+        
+        const closeButton = document.createElement('button');
+        closeButton.innerHTML = '&times;';
+        closeButton.style.cssText = 'position: absolute; top: 10px; right: 10px; background: none; border: none; font-size: 24px; cursor: pointer;';
+        closeButton.onclick = () => reportContainer.remove();
+        
+        const content = document.createElement('div');
+        content.innerHTML = reportMarkdown.replace(/\n/g, '<br>');
+        
+        reportContainer.appendChild(closeButton);
+        reportContainer.appendChild(content);
+        document.body.appendChild(reportContainer);
+      }
+      
+      return reportMarkdown;
+    } else {
+      console.warn('Report generator not available');
+      throw new Error('Report generator module not loaded');
+    }
+  } catch (error) {
+    console.error('Error generating interview report:', error);
+    
+    // Show error in UI
+    if (typeof updateStatus === 'function') {
+      updateStatus(`Report generation error: ${error.message}`);
+    }
+    
+    // Create basic error report if needed
+    if (typeof getOrCreateReportContainer === 'function') {
+      const reportContainer = getOrCreateReportContainer();
+      reportContainer.innerHTML = `
+        <div class="report-error">
+          <h2>Error Generating Report</h2>
+          <p>${error.message}</p>
+          <p>Please ensure all required modules are loaded and try again.</p>
+        </div>
+      `;
+    }
+    
+    return null;
   }
 }
 

@@ -319,7 +319,28 @@ async function startSession() {
             // Don't update status from the audio processor as it would conflict
             (status) => console.log('Audio processor status:', status),
             // Prefix user transcripts to distinguish from interviewer
-            (text) => updateTranscript(`[Candidate]: ${text}`),
+            (text) => {
+              // Update UI with the transcript
+              updateTranscript(`[Candidate]: ${text}`);
+              
+              // Add to the interview agent's full transcript if available
+              if (window.interviewAgentState && Array.isArray(window.interviewAgentState.fullTranscript)) {
+                window.interviewAgentState.fullTranscript.push({
+                  role: 'candidate',
+                  text: text,
+                  timestamp: new Date().toISOString(),
+                  emotion: window.currentEmotion || 'Neutral'
+                });
+                console.log(`Added candidate response to transcript, new length: ${window.interviewAgentState.fullTranscript.length}`);
+                console.log(`Transcript now contains: ${window.interviewAgentState.fullTranscript.length} entries`);
+              } else {
+                console.error('Cannot add candidate response to transcript: interviewAgentState or fullTranscript not available');
+                console.log('interviewAgentState available:', !!window.interviewAgentState);
+                if (window.interviewAgentState) {
+                  console.log('fullTranscript is an array:', Array.isArray(window.interviewAgentState.fullTranscript));
+                }
+              }
+            },
             // Use a separate function for user summaries
             (summary) => {
               // Store candidate summaries but don't override the main summary

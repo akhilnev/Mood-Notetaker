@@ -106,13 +106,63 @@ function formatTranscriptForEvaluation(fullTranscript) {
 function collectInterviewData(interviewConfig) {
   // Get transcript data from interviewAgentState if available
   let fullTranscript = [];
-  if (window.interviewAgentState && window.interviewAgentState.fullTranscript) {
-    fullTranscript = window.interviewAgentState.fullTranscript;
+  
+  // Debug transcript availability
+  console.log("Checking transcript sources");
+  
+  // First try the direct window reference which should be the most reliable
+  if (window.interviewAgentState) {
+    console.log("Found interviewAgentState on window object");
+    if (Array.isArray(window.interviewAgentState.fullTranscript) && window.interviewAgentState.fullTranscript.length > 0) {
+      console.log(`Using window.interviewAgentState.fullTranscript with ${window.interviewAgentState.fullTranscript.length} entries`);
+      fullTranscript = window.interviewAgentState.fullTranscript;
+    } else {
+      console.log("window.interviewAgentState.fullTranscript is empty or not an array");
+    }
+  } else {
+    console.log("No interviewAgentState found on window object");
   }
   
-  // Get transcript from DOM as fallback
-  const transcriptElement = document.getElementById('transcript');
-  const transcript = transcriptElement ? transcriptElement.innerText : '';
+  // If we still don't have a transcript, look at other possible locations
+  if (fullTranscript.length === 0) {
+    console.warn('No interviewAgentState.fullTranscript available - using fallback');
+    
+    // Try to grab transcript from the DOM
+    const transcriptElement = document.getElementById('transcript');
+    const transcript = transcriptElement ? transcriptElement.innerText : '';
+    
+    if (transcript && transcript.length > 50) {
+      console.log("Using DOM transcript as fallback");
+      
+      // Convert DOM transcript to an array of entries
+      const lines = transcript.split('\n').filter(line => line.trim() !== '');
+      
+      for (const line of lines) {
+        // Try to parse the line format "[Role]: Text"
+        const match = line.match(/\[(.*?)\]:\s*(.*)/);
+        if (match) {
+          const roleText = match[1];
+          const text = match[2];
+          
+          // Determine the role
+          let role = 'system';
+          if (roleText.toLowerCase().includes('interviewer')) {
+            role = 'interviewer';
+          } else if (roleText.toLowerCase().includes('candidate')) {
+            role = 'candidate';
+          }
+          
+          fullTranscript.push({
+            role: role,
+            text: text,
+            timestamp: new Date().toISOString() // We don't have real timestamps, so use current time
+          });
+        }
+      }
+      
+      console.log(`Created transcript array with ${fullTranscript.length} entries from DOM`);
+    }
+  }
   
   // Get mood data if available
   let emotions = [];
@@ -127,7 +177,7 @@ function collectInterviewData(interviewConfig) {
   // Combine data
   return {
     config: interviewConfig,
-    transcript: transcript,
+    transcript: document.getElementById('transcript') ? document.getElementById('transcript').innerText : '',
     fullTranscript: fullTranscript,
     emotions: emotions,
     summary: summary,
@@ -249,6 +299,9 @@ function renderReport(markdown) {
   reportContainer.innerHTML = '';
   reportContainer.appendChild(closeButton);
   reportContainer.appendChild(reportContent);
+  
+  // Make sure the container is visible
+  reportContainer.style.display = 'block';
 }
 
 /**
@@ -394,4 +447,6 @@ function addReportStyles() {
 document.addEventListener('DOMContentLoaded', addReportStyles);
 
 // Export functions for use in other modules
-window.generateReport = generateReport; 
+window.generateReport = generateReport;
+window.renderReport = renderReport;
+window.getOrCreateReportContainer = getOrCreateReportContainer; 
